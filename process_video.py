@@ -1,6 +1,16 @@
 import os
-import numpy as np
 import matplotlib.pyplot as plt
+import scipy.io
+import numpy as np
+import pandas as pd
+import open3d as o3d
+import cv2 as cv
+
+from tqdm import tqdm
+from pprint import pprint
+from pathlib import Path
+
+from PIL import Image
 
 import properties as p
 import video_utils as vu
@@ -50,5 +60,39 @@ if __name__ == "__main__":
     read_config_file()
     print(POINTS)
     POINTS[0].calculate_homography()
-    frame = vu.load_frame_from_video("data\\Tesla\\TeslaVC_carreiraVIDEOS\\2023-07-23_11-36-50-back.mp4", 50)
-    plt.imsave(os.path.join(p.OUTPUT_DIR, "frame_50.jpg"), frame)
+
+    mat = scipy.io.loadmat('Shared/project/specs/surf_features.mat')
+
+    print("Subsampling video to obtain frames...")
+    # video_path = Path()"Shared/project/Tesla/TeslaVC_carreiraVIDEOS/2023-07-23_11-36-50-back.mp4")
+    # video_mat =  vu.load_n_frames(str(video_path), "./output", 60)
+    print("Saved subsampled frames.")
+    
+    print("Creating features.mat ...")
+    frames = Path('./Shared/project/Tesla/Tecnico_originals/images_11_36_50/back/')
+    features = []
+
+    for img_path in tqdm(frames.glob('back_undistorted_*.jpg')):
+        img = cv.imread(str(img_path))
+        gray = cv.cvtColor(img,cv.COLOR_BGR2GRAY)
+        sift = cv.SIFT_create()
+        keypoints, descriptors = sift.detectAndCompute(gray, None)
+
+        frame_entries = []
+        for i in range(len(keypoints)):
+            x, y = keypoints[i].pt
+            descriptor = descriptors[i]
+            frame_entry = np.insert(descriptor, 0, (x, y))
+            frame_entries.append(frame_entry)
+        
+        data = np.array(frame_entries)  # Expects shape of ((x,y,descriptor), n_features), not other way around, transpose??
+        features.append(data)
+
+    # Saving as matlab files
+    features_mat = np.array(features, dtype='object')
+    for i, el in enumerate(features_mat):
+        features_mat[i] = el.T
+    feature_path = Path('./output') / "features.mat"
+    scipy.io.savemat(feature_path, {'features': features_mat})
+
+    print("END")
