@@ -64,7 +64,7 @@ if __name__ == "__main__":
     mat = scipy.io.loadmat('Shared/project/specs/surf_features.mat')
 
     print("Subsampling video to obtain frames...")
-    # video_path = Path()"Shared/project/Tesla/TeslaVC_carreiraVIDEOS/2023-07-23_11-36-50-back.mp4")
+    # video_path = Path("Shared/project/Tesla/TeslaVC_carreiraVIDEOS/2023-07-23_11-36-50-back.mp4")
     # video_mat =  vu.load_n_frames(str(video_path), "./output", 60)
     print("Saved subsampled frames.")
     
