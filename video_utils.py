@@ -24,3 +24,14 @@ def load_n_frames(filename, out_filename, n_steps):
         skvideo.io.vwrite(frame_name, video_mat[frame_n])
     
     return video_mat
+    
+
+def video_to_frames(filename, out_filename, n_steps):
+    vidcap = cv2.VideoCapture(str(filename))
+    success, image = vidcap.read()
+    count = 0
+    while success: 
+        success, image = vidcap.read()
+        if count % n_steps == 0:
+            cv2.imwrite(f"{out_filename}/frame_{count//n_steps}.jpg", image)     # save frame as JPEG file      
+        count += 1

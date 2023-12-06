@@ -1,5 +1,3 @@
-import os
-import matplotlib.pyplot as plt
 import scipy.io
 import numpy as np
 import pandas as pd
@@ -8,8 +6,6 @@ import cv2 as cv
 from tqdm import tqdm
 from pprint import pprint
 from pathlib import Path
-
-from PIL import Image
 
 import properties as p
 import video_utils as vu
@@ -63,15 +59,15 @@ if __name__ == "__main__":
     mat = scipy.io.loadmat('Shared/project/specs/surf_features.mat')
 
     print("Subsampling video to obtain frames...")
-    # video_path = Path("Shared/project/Tesla/TeslaVC_carreiraVIDEOS/2023-07-23_11-36-50-back.mp4")
-    # video_mat =  vu.load_n_frames(str(video_path), "./output", 60)
+    video_path = Path("Shared/project/trymefirst.mp4")
+    video_mat =  vu.video_to_frames(str(video_path), Path("./output"), 60)
     print("Saved subsampled frames.")
     
     print("Creating features.mat ...")
-    frames = Path('./Shared/project/Tesla/Tecnico_originals/images_11_36_50/back/')
+    frames = Path("output")
     features = []
 
-    for img_path in tqdm(frames.glob('back_undistorted_*.jpg')):
+    for img_path in tqdm(frames.glob('frame_*.jpg')):
         img = cv.imread(str(img_path))
         sift = cv.SIFT_create()
         keypoints, descriptors = sift.detectAndCompute(img, None)

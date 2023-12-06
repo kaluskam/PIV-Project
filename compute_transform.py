@@ -92,17 +92,17 @@ if __name__ == "__main__":
     mat = scipy.io.loadmat(str(features_path))
     features = mat['features']  # (1, num_frames)
 
-    base_path = Path('./Shared/project/Tesla/Tecnico_originals/images_11_36_50/back/')
+    base_path = Path('output')
 
     transformation_matrix = []
-    for src_i in range(1, 3): # features.shape[1] - 1):  #  Get subsequent homographies between images
+    for src_i in range(1, 2): # features.shape[1] - 1):  #  Get subsequent homographies between images
         for dest_i in range(1, 3): # features.shape[1] - 1):
 
             frame_src = features[0, src_i]
             frame_dest = features[0, dest_i]
 
-            src_path = base_path / f"back_undistorted_{src_i:04}.jpg"
-            dest_path = base_path / f"back_undistorted_{dest_i:04}.jpg"
+            src_path = base_path / f"frame_{src_i}.jpg"
+            dest_path = base_path / f"frame_{dest_i}.jpg"
 
             # Find the best match for each descriptor in the first set
             print(f"Feature matching {src_i} to {dest_i}...")
@@ -116,11 +116,11 @@ if __name__ == "__main__":
             # RANSAC
             # TODO: Put into config
             best_model = None
-            threshold = 100
+            threshold = 200
             inlier_max = 0
             n_sample = 4
             print(f"Finding best model with RANSAC...")
-            for i in tqdm(range(500)):
+            for i in tqdm(range(1000)):
                 top_matches = random.sample(matches, n_sample)
 
                 match_matrix_list = []
@@ -161,7 +161,7 @@ if __name__ == "__main__":
     src_img = Image.open(src_path)
     dest_img = Image.open(dest_path)
 
-    print(f"Performing pixel wise homography on the image between {}:{}...")
+    print(f"Performing pixel wise homography on the image between {src_i}:{dest_i}...")
     warped_img = warp_image(np.array(src_img), best_model)
     
     warped_img.save("./output/_warped_img.jpg")
