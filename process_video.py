@@ -74,9 +74,8 @@ if __name__ == "__main__":
 
     for img_path in tqdm(frames.glob('back_undistorted_*.jpg')):
         img = cv.imread(str(img_path))
-        gray = cv.cvtColor(img,cv.COLOR_BGR2GRAY)
         sift = cv.SIFT_create()
-        keypoints, descriptors = sift.detectAndCompute(gray, None)
+        keypoints, descriptors = sift.detectAndCompute(img, None)
 
         frame_entries = []
         for i in range(len(keypoints)):
