@@ -24,12 +24,24 @@ def get_point_entry(x, y, u, v):
     ])
 
 
+def homography_matrix(x_src, y_src, x_dst, y_dst):
+    A = np.zeros((8, 9))
+
+    for i in range(len(x_src)):
+        A[i * 2] = np.array([x_src[i], y_src[i], 1, 0, 0, 0, -x_dst[i] * x_src[i], -x_dst[i] * y_src[i], -x_dst[i]])
+        A[i * 2 + 1] = np.array([0, 0, 0, x_src[i], y_src[i], 1, -y_dst[i] * x_src[i], -y_dst[i] * y_src[i], -y_dst[i]])
+
+    _, _, V = np.linalg.svd(A, full_matrices=True)
+    h = V[-1]
+    return np.reshape(h, (3, 3))
+
+
 if __name__ == "__main__":
     features_path = Path('./output/features.mat')
     mat = scipy.io.loadmat(str(features_path))
     features = mat['features']  # (1, num_frames)
 
-    base_path = Path('./Shared/project/Tesla/Tecnico_originals/images_11_36_50/back/')
+    base_path = Path('data/Tesla/Tecnico_originals/images_11_36_50/back/')
     src_i = 1
     dest_i = src_i + 1
 
@@ -62,18 +74,11 @@ if __name__ == "__main__":
     n_sample = 4
     for i in tqdm(range(100)):
         # print(f"Sampling {n_sample} points to perform optimization wrt to finding the homography...")
-        top_matches = random.sample(matches, n_sample)
-
-        match_matrix_list = []
-        for src, dest in top_matches:
-            x, y = frame_src[:2, src]
-            u, v = frame_dest[:2, dest]
-            match_matrix_list.append(get_point_entry(x, y, u, v))
-        match_matrix = np.concatenate(match_matrix_list, axis=0)
-
-        U, S, Vh = np.linalg.svd(match_matrix, full_matrices=True)
-        solution = Vh[-1]
-        homography = np.reshape(solution, (3, 3))
+        top_matches = np.array(random.sample(matches, n_sample))
+        homography = homography_matrix(frame_src[0, top_matches[:, 0]],
+                                       frame_src[1, top_matches[:, 0]],
+                                       frame_dest[0, top_matches[:, 1]],
+                                       frame_dest[1, top_matches[:, 1]])#np.reshape(solution, (3, 3))
         inlier_count = 0
 
         # Check if model better
