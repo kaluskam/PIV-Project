@@ -38,6 +38,7 @@ if __name__ == "__main__":
         shutil.rmtree(output_dir)
 
     print("Subsampling video to obtain frames...")
+
     for video_path in VIDEO_PATHS:
         _, video_name = os.path.split(video_path)
         video_path = Path(video_path)
