@@ -57,9 +57,9 @@ def read_config_file():
             pts_in_frame = np.reshape(pts_in_frame, (pts_in_frame.shape[0] // 2, 2))
             POINTS.append(MapFramePair(frame_id, pts_in_map, pts_in_frame))
         if line.startswith('transforms_out'):
-            transforms_out = line.strip().split(' ')[1]
+            transforms_out = Path(line.strip().split(' ')[1])
         if line.startswith('keypoints_out'):
-            keypoints_out = line.strip().split(' ')[1]
+            keypoints_out = Path(line.strip().split(' ')[1])
 
 def warp_image(src_img, homography):
     output_img = np.zeros_like(src_img)
@@ -95,8 +95,8 @@ if __name__ == "__main__":
     base_path = Path('./Shared/project/Tesla/Tecnico_originals/images_11_36_50/back/')
 
     transformation_matrix = []
-    for src_i in range(1, 2): #features.shape[1] - 1):  #  Get subsequent homographies between images
-        for dest_i in range(1, 3): #features.shape[1] - 1):
+    for src_i in range(1, 3): # features.shape[1] - 1):  #  Get subsequent homographies between images
+        for dest_i in range(1, 3): # features.shape[1] - 1):
 
             frame_src = features[0, src_i]
             frame_dest = features[0, dest_i]
@@ -116,11 +116,11 @@ if __name__ == "__main__":
             # RANSAC
             # TODO: Put into config
             best_model = None
-            threshold = 300
+            threshold = 100
             inlier_max = 0
             n_sample = 4
             print(f"Finding best model with RANSAC...")
-            for i in tqdm(range(100)):
+            for i in tqdm(range(500)):
                 top_matches = random.sample(matches, n_sample)
 
                 match_matrix_list = []
@@ -136,7 +136,8 @@ if __name__ == "__main__":
 
                 # Check if model better
                 inlier_count = 0
-                for src, dest in matches:
+                random.shuffle(matches)
+                for src, dest in matches[:100]:
                     x, y = frame_src[:2, src]
                     u, v = frame_dest[:2, dest]
                     input_v = np.array([x, y, 1])
@@ -160,7 +161,7 @@ if __name__ == "__main__":
     src_img = Image.open(src_path)
     dest_img = Image.open(dest_path)
 
-    print("Performing pixel wise homography on the image ...")
+    print(f"Performing pixel wise homography on the image between {}:{}...")
     warped_img = warp_image(np.array(src_img), best_model)
     
     warped_img.save("./output/_warped_img.jpg")
@@ -168,6 +169,8 @@ if __name__ == "__main__":
     dest_img.save("./output/_dest_img.jpg")
     
     transformation_matrix = np.stack(transformation_matrix, axis=1)
+    scipy.io.savemat(transforms_out, {'transforms': transformation_matrix})
+
     print(f"Transformation matrix {transformation_matrix.shape}...")
     print(transformation_matrix)
 

@@ -3,7 +3,6 @@ import matplotlib.pyplot as plt
 import scipy.io
 import numpy as np
 import pandas as pd
-import open3d as o3d
 import cv2 as cv
 
 from tqdm import tqdm
