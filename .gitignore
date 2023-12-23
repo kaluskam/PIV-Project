@@ -190,3 +190,5 @@ fabric.properties
 Shared/
 __pycache__
 output/*
+.DS_Store
+.idea

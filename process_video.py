@@ -42,7 +42,9 @@ if __name__ == "__main__":
     for video_path in VIDEO_PATHS:
         _, video_name = os.path.split(video_path)
         video_path = Path(video_path)
-        videos.append(vu.load_n_frames(str(video_path), os.path.join(output_dir, video_name, 'frames'), 10))
+        video_path_output = Path(f"output/{video_name}/frames")
+        os.makedirs(video_path_output)
+        video_mat =  vu.video_to_frames(str(video_path), video_path_output, 60)
     print("Saved subsampled frames.")
 
     print("Creating features.mat ...")

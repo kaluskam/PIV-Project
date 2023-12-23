@@ -64,6 +64,17 @@ def get_point_entry(x, y, u, v):
         [0, 0, 0, -x, -y, -1, v * x, v * y, v]
     ])
 
+def get_homography(matched_points, src_frame, dest_frame):
+    match_matrix_list = []
+    for src, dest in matched_points:
+        x, y = src_frame[:2, src]
+        u, v = dest_frame[:2, dest]
+        match_matrix_list.append(get_point_entry(x, y, u, v))
+    match_matrix = np.concatenate(match_matrix_list, axis=0)
+
+    U, S, Vh = np.linalg.svd(match_matrix, full_matrices=True)
+    homography_ = np.reshape(Vh[-1], (3, 3))
+    return homography_
 
 if __name__ == "__main__":
     print("Reading the configuration...")
@@ -77,7 +88,6 @@ if __name__ == "__main__":
         transformation_matrix = []
         for src_i in range(1, 2):   # features.shape[1] - 1):  #  Get subsequent homographies between images
             for dest_i in range(1, 3):  # features.shape[1] - 1):
-
                 frame_src = features[0, src_i].T
                 frame_dest = features[0, dest_i].T
 
@@ -95,29 +105,19 @@ if __name__ == "__main__":
 
                 # RANSAC
                 # TODO: Put into config
-                best_model = None
-                threshold = 200
+                threshold = 10
                 inlier_max = 0
                 n_sample = 4
+                NUM_ITER = 35
+                most_inliers = []
                 print(f"Finding best model with RANSAC...")
-                for i in tqdm(range(1000)):
+                for i in tqdm(range(NUM_ITER)):
                     top_matches = random.sample(matches, n_sample)
-
-                    match_matrix_list = []
-                    for src, dest in top_matches:
-                        x, y = frame_src[:2, src]
-                        u, v = frame_dest[:2, dest]
-                        match_matrix_list.append(get_point_entry(x, y, u, v))
-                    match_matrix = np.concatenate(match_matrix_list, axis=0)
-
-                    U, S, Vh = np.linalg.svd(match_matrix, full_matrices=True)
-                    solution = Vh[-1]
-                    homography = np.reshape(solution, (3, 3))
+                    homography = get_homography(top_matches, frame_src, frame_dest)
 
                     # Check if model better
-                    inlier_count = 0
-                    random.shuffle(matches)
-                    for src, dest in matches[:100]:
+                    inliers = []
+                    for src, dest in matches:
                         x, y = frame_src[:2, src]
                         u, v = frame_dest[:2, dest]
                         input_v = np.array([x, y, 1])
@@ -125,33 +125,34 @@ if __name__ == "__main__":
                         output_scaled = output_v / output_v[2]
                         x_new, y_new, _ = output_scaled
 
-                        distance = np.linalg.norm(np.array([u, v]) - np.array([x_new, y_new]))
+                        distance = abs(np.linalg.norm(np.array([u, v]) - np.array([x_new, y_new])))
                         if distance < threshold:
-                            inlier_count += 1
+                            inliers.append((src, dest))
 
-                    if inlier_count > inlier_max:
-                        best_model = homography
-                        inlier_max = inlier_count
+                    if len(inliers) > inlier_max:
+                        most_inliers = inliers
+                        inlier_max = len(inliers)
 
+                best_model = get_homography(most_inliers, frame_src, frame_dest)
                 print(f"homography: {best_model}")
                 transformation_entry = np.reshape(best_model, (9, 1))
-                transformation_entry = np.insert(homography, 0, (dest_i, src_i))
+                transformation_entry = np.insert(best_model, 0, (dest_i, src_i))
                 transformation_matrix.append(transformation_entry)
 
-        src_img = Image.open(src_path)
-        dest_img = Image.open(dest_path)
+    src_img = Image.open(src_path)
+    dest_img = Image.open(dest_path)
 
-        print(f"Performing pixel wise homography on the image between {src_i}:{dest_i}...")
-        warped_img = warp_image(np.array(src_img), best_model)
+    print(f"Performing pixel wise homography on the image between {src_i}:{dest_i}...")
+    warped_img = warp_image(np.array(src_img), best_model)
 
-        warped_img.save("./output/_warped_img.jpg")
-        src_img.save("./output/_src_img.jpg")
-        dest_img.save("./output/_dest_img.jpg")
+    warped_img.save("./output/_warped_img.jpg")
+    src_img.save("./output/_src_img.jpg")
+    dest_img.save("./output/_dest_img.jpg")
 
-        transformation_matrix = np.stack(transformation_matrix, axis=1)
-        scipy.io.savemat(transforms_out, {'transforms': transformation_matrix})
+    transformation_matrix = np.stack(transformation_matrix, axis=1)
+    scipy.io.savemat(transforms_out, {'transforms': transformation_matrix})
 
-        print(f"Transformation matrix {transformation_matrix.shape}...")
-        print(transformation_matrix)
+    print(f"Transformation matrix {transformation_matrix.shape}...")
+    print(transformation_matrix)
 
     print('END')
