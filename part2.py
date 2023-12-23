@@ -14,6 +14,31 @@ from PIL import Image
 import cv2
 from pprint import pprint
 
+def parse_config_file(file_path):
+    """
+    Reading cfg file that is provided 
+    Provided by the professor
+    """
+    config_dict = {}
+    with open(file_path, 'r') as file:
+        for line in file:
+            line = line.strip()
+            # Ignore comments
+            if line.startswith('#'):
+                continue
+            # Split the line into tokens
+            tokens = line.split()
+            # Extract parameter names and values
+            param_name = tokens[0]
+            param_values = [tokens[1:]]
+            # Check if the token already exists in the dictionary
+            if param_name in config_dict:
+                # Add new values to the existing token
+                config_dict[param_name].extend(param_values)
+            else:
+                # Create a new entry in the dictionary
+                config_dict[param_name] = param_values
+    return config_dict
 
 def parse_camera_matrix(matrix_str):
     lines = matrix_str.strip().split('\n')
@@ -36,7 +61,8 @@ def parse_camera_matrix(matrix_str):
     return K, k
 
 if __name__ == '__main__':
-    file_name, config_name = sys.argv  # TODO: Make paths dependent on config
+    if len(sys.argv) == 2:
+        file_name, config_name = sys.argv  # TODO: Make paths dependent on config
 
     calibration_path = Path("Shared/project/Tesla/CalibrationTesla")
     back_calibration_path = calibration_path / "BackCamera_calibration.txt"
