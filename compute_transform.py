@@ -16,6 +16,9 @@ import properties as p
 import video_utils as vu
 import transformation_utils as tu
 
+import cv2 as cv
+
+
 # random.seed(0)
 FEATURES_PATHS = []
 VIDEO_PATHS = []
@@ -86,8 +89,8 @@ if __name__ == "__main__":
         base_path = os.path.join('output', video_name, 'frames')
 
         transformation_matrix = []
-        for src_i in range(1, 2):   # features.shape[1] - 1):  #  Get subsequent homographies between images
-            for dest_i in range(1, 3):  # features.shape[1] - 1):
+        for src_i in range(features.shape[1] - 1):  #  Get subsequent homographies between images
+            for dest_i in range(features.shape[1] - 1):
                 frame_src = features[0, src_i].T
                 frame_dest = features[0, dest_i].T
 
@@ -97,11 +100,21 @@ if __name__ == "__main__":
                 # Find the best match for each descriptor in the first set
                 print(f"Feature matching {src_i} to {dest_i}...")
 
+                # Finding nearest neighbour between each feature 
+                # matches = []
+                # distances = cdist(frame_src.T, frame_dest.T, 'euclidean')
+                # for i, distance in enumerate(distances):
+                #     min_index = np.argmin(distance)
+                #     matches.append((i, min_index))
+
+                # Feature matching between images, using opencv more accurate and 
+                # faster than the upper implementation, and should be allowed according to 
+                # the project description
+                bf = cv.BFMatcher(cv.NORM_L2, crossCheck=True)
+                matches_raw = bf.match(frame_src.T, frame_dest.T)
                 matches = []
-                distances = cdist(frame_src.T, frame_dest.T, 'euclidean')
-                for i, distance in enumerate(distances):
-                    min_index = np.argmin(distance)
-                    matches.append((i, min_index))
+                for m in matches_raw:
+                    matches.append([m.queryIdx, m.trainIdx])
 
                 # RANSAC
                 # TODO: Put into config

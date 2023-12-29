@@ -36,5 +36,5 @@ def video_to_frames(filename, out_dir, n_steps):
         success, image = vidcap.read()
         if count % n_steps == 0:
             output_path = out_dir / f"frame_{count//n_steps}.jpg"
-            cv2.imwrite(output_path, image)     # save frame as JPEG file      
+            cv2.imwrite(str(output_path), image)     # save frame as JPEG file      
         count += 1
