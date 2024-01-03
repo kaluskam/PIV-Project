@@ -1,5 +1,5 @@
 
-import scipy.io
+import scipy
 import sys
 
 import numpy as np
@@ -108,66 +108,82 @@ if __name__ == '__main__':
     K_left, k_left = get_calibration("LeftCamera_calibration.txt")
     K_right, k_right = get_calibration("RightCamera_calibration.txt")
 
-    back_images = glob.glob("Shared/project/Tesla/TeslaVC_carreira/undistorted_images/2023-07-23_11-36-50-back/*.jpg")
-    side_images_left = glob.glob("Shared/project/Tesla/TeslaVC_carreira/undistorted_images/2023-07-23_11-36-50-left_repeater/*.jpg")
-    side_images_right = glob.glob("Shared/project/Tesla/TeslaVC_carreira/undistorted_images/2023-07-23_11-36-50-right_repeater/*.jpg")
+    back_images = sorted(glob.glob("Shared/project/Tesla/TeslaVC_carreira/undistorted_images/2023-07-23_11-36-50-back/*.jpg"))
+    side_images_left = sorted(glob.glob("Shared/project/Tesla/TeslaVC_carreira/undistorted_images/2023-07-23_11-36-50-left_repeater/*.jpg"))
+    side_images_right = sorted(glob.glob("Shared/project/Tesla/TeslaVC_carreira/undistorted_images/2023-07-23_11-36-50-right_repeater/*.jpg"))
     
     for i, (back_i, left_i, right_i) in tqdm(enumerate(zip(back_images, side_images_left, side_images_right))):
-        if i > 5:
+        if i > 0:
             break
+            
+        print(f"back_path: {back_i}")
+        print(f"right_patch: {right_i}")
+
         image1 = cv2.imread(back_i)
         image2 = cv2.imread(left_i)
         image3 = cv2.imread(right_i)
 
-        # Step 2: Detect keypoints and compute descriptors
+        # Detect keypoints and compute descriptors
         sift = cv2.SIFT_create()
         keypoints_back, descriptors_1 = sift.detectAndCompute(image1, None)
         keypoints_2, descriptors_2 = sift.detectAndCompute(image2, None)
         keypoints_3, descriptors_3 = sift.detectAndCompute(image3, None)
 
-        # Step 3: Match features
+        # Match features
         matcher = cv2.BFMatcher()
         matches_left_back = matcher.knnMatch(descriptors_1, descriptors_2, k=2)
         matches_right_back = matcher.knnMatch(descriptors_1, descriptors_3, k=2)
 
         homographies = []
-        for matches, keypoints in ((matches_left_back, keypoints_2), (matches_right_back, keypoints_3)):
+        
+        for image, matches, keypoints in ((image3, matches_right_back, keypoints_3),):
             # Apply ratio test to find good matches
             good_matches = []
             for m, n in matches:
-                if m.distance < 0.9 * n.distance:
+                if m.distance < 0.8 * n.distance:
                     good_matches.append(m)
 
             # Extract location of good matches
-            points1 = np.zeros((len(good_matches), 2), dtype=np.float32)
-            points2 = np.zeros((len(good_matches), 2), dtype=np.float32)
+            points_src = np.zeros((len(good_matches), 2), dtype=np.float32)
+            points_dest = np.zeros((len(good_matches), 2), dtype=np.float32)
 
             for i, match in enumerate(good_matches):
-                points1[i, :] = keypoints_back[match.queryIdx].pt
-                points2[i, :] = keypoints[match.trainIdx].pt
+                points_src[i, :] = keypoints_back[match.queryIdx].pt
+                points_dest[i, :] = keypoints[match.trainIdx].pt
 
-            # Step 4: Find homography
-            homography, mask = cv2.findHomography(points1, points2, cv2.RANSAC)
+            # Find homography
+            homography, mask = cv2.findHomography(points_src, points_dest, cv2.RANSAC, ransacReprojThreshold=1)
 
             h_norm = np.linalg.inv(K_back) @ homography  # from homography = K * [rot, trans]
             r_1, r_2, translation = [h_norm[:, column] for column in range(3)]  # Columns from h_norm
             r_3 = np.cross(r_1, r_2)  # Third rotation axis always normal to other two 
-            rotation = np.array([r_1, r_2, r_3])
+            rotation = np.array([r_1, r_2, r_3]) 
+            rotation = scipy.linalg.orth(rotation)
 
-            homographies.append([homography, rotation, translation])
+            # homographies.append([homography, rotation, translation])
 
-            print(f"Rotation: {rotation}")
-            print(f"Translation: {translation}")
-
-            height, width, channels = image2.shape
-            warped_image = cv2.warpPerspective(image1, homography, (width, height))
+            K_back = np.array(K_back)
+            E = K_back.T * homography * K_back
+            _, R, t, _ = cv2.recoverPose(E, points_src, points_dest, K_back)
+            # points_3D = cv2.triangulatePoints(projMatr1, projMatr2, points_src, points_dest)
+            print(f"Rotation: {R}")
+            print(f"Translation: {t}")
+            homographies.append([homography, R, t])
 
             # Display the result
             """
+            height, width, channels = image.shape
+            warped_image = cv2.warpPerspective(image1, homography, (width, height))
+
+            image1_kp = cv2.drawKeypoints(image1, keypoints_back, 0, (0, 0, 255))
+            image_dest_kp = cv2.drawKeypoints(image, keypoints, 0, (0, 0, 255))
+            cv2.imshow('Original Image', image1_kp)
+            cv2.imshow('Destination Image', image_dest_kp)
             cv2.imshow('Warped Image', warped_image)
             cv2.waitKey(0)
             cv2.destroyAllWindows()
             """
+            
 
     # Visualization
     # Create a new figure for 3D plotting
@@ -175,22 +191,28 @@ if __name__ == '__main__':
     ax = fig.add_subplot(111, projection='3d')
 
     # Draw the backcamera, as the origin, since the homographies are relative to it
-    back_camera = np.array([0, 0, 0])
-    back_orientation = np.array([0, 0, -1]) * 3
-    ax.scatter(*back_camera, color='r', s=100, label='Camera Position')
-    ax.quiver(*back_camera, *back_orientation, length=0.5, color='blue', arrow_length_ratio=0.3)
+    i = np.array([1, 0, 0])  # unit vectors along axes
+    j = np.array([0, 1, 0])
+    k = np.array([0, 0, 1])
 
-    for homography, rotation, translation in homographies:
-        camera_z = np.array([0, 0, 1])
-        camera_position = translation
-        camera_orientation = rotation @ camera_z
-        camera_orientation /= np.linalg.norm(camera_orientation) / 3
+    # Plotting the base camera
+    back_camera = np.array([0, 0, 0])
+    ax.scatter(*back_camera, color='r', s=100, label='Camera Position')
+    ax.quiver(*back_camera, *(i), color='r', arrow_length_ratio=0.3)
+    ax.quiver(*back_camera, *(j), color='g', arrow_length_ratio=0.3)
+    ax.quiver(*back_camera, *(k), color='b', arrow_length_ratio=0.3)
+
+    for index, (homography, rotation, translation) in enumerate(homographies):
+        # Plot the basis vectors
+        camera_position = back_camera + np.array([translation[0], translation[1], 0])
 
         # Plot the camera position
-        ax.scatter(*camera_position, color='r', s=100, label='Camera Position')
+        ax.scatter(*camera_position, s=100, label=f"Camera Position {index}")
 
         # Plot the camera orientation as an arrow
-        ax.quiver(*camera_position, *camera_orientation, length=0.5, color='blue', arrow_length_ratio=0.3)
+        ax.quiver(*camera_position, *(rotation @ i), color='r', arrow_length_ratio=0.3)
+        ax.quiver(*camera_position, *(rotation @ j), color='g', arrow_length_ratio=0.3)
+        ax.quiver(*camera_position, *(rotation @ k), color='b', arrow_length_ratio=0.3)
 
     # Setting plot limits for better visualization
     field_length = 3
