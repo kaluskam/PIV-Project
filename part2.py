@@ -171,7 +171,7 @@ if __name__ == '__main__':
             homographies.append([homography, R, t])
 
             # Display the result
-            """
+            
             height, width, channels = image.shape
             warped_image = cv2.warpPerspective(image1, homography, (width, height))
 
@@ -182,7 +182,11 @@ if __name__ == '__main__':
             cv2.imshow('Warped Image', warped_image)
             cv2.waitKey(0)
             cv2.destroyAllWindows()
-            """
+
+            # cv2.imwrite(f"output/back_{i}.jpg", image1_kp)
+            # cv2.imwrite(f"output/left_{i}.jpg", image_dest_kp)
+            # cv2.imwrite(f"output/warped_{i}.jpg", warped_image)
+
             
 
     # Visualization

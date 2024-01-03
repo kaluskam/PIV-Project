@@ -69,9 +69,9 @@ if __name__ == "__main__":
                 frame_entries)  # Expects shape of ((x,y,descriptor), n_features), not other way around, transpose??
             features.append(data)
 
-            # Saving as matlab files
-            features_mat = np.array(features, dtype='object')
-            for i, el in enumerate(features_mat):
-                features_mat[i] = el
-            scipy.io.savemat(FEATURES_PATHS[j], {'features': features_mat})
+        # Saving as matlab files
+        features_mat = np.array(features, dtype='object')
+        for i, el in enumerate(features_mat):
+            features_mat[i] = el
+        scipy.io.savemat(FEATURES_PATHS[j], {'features': features_mat})
     print("END")
