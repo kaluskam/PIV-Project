@@ -19,6 +19,16 @@ import glob
 
 import video_utils as vu
 
+
+BACK_CAMERA_PATH = None
+RIGHT_CAMERA_PATH = None
+LEFT_CAMERA_PATH = None
+BACK_INTRINSICS = None
+RIGHT_INTRINSICS = None
+LEFT_INTRINSICS = None
+VIDEO_PATHS = []
+FEATURES_PATHS = []
+
 def parse_config_file(file_path):
     """
     Reading cfg file that is provided 
@@ -65,33 +75,40 @@ def parse_camera_matrix(matrix_str):
 
     return K, k
 
-VIDEO_PATHS = []
-FEATURES_PATHS = []
-
 def load_conf_file():
-    global VIDEO_PATHS
-    global FEATURES_PATHS
+    global VIDEO_PATHS, FEATURES_PATHS, BACK_CAMERA_PATH, LEFT_CAMERA_PATH, RIGHT_CAMERA_PATH, BACK_INTRINSICS, RIGHT_INTRINSICS, LEFT_INTRINSICS
     with open("config_2.cfg") as config_file:
         for line in config_file:
             if line.startswith('videos'):
                 VIDEO_PATHS = line.strip().split(' ')[1:]
             if line.startswith('keypoints_out'):
                 FEATURES_PATHS = line.strip().split(' ')[1:]
+            if line.startswith('back_camera'):
+                BACK_CAMERA_PATH = line.strip().split(' ')[-1]
+            if line.startswith('left_camera'):
+                LEFT_CAMERA_PATH = line.strip().split(' ')[-1]
+            if line.startswith('right_camera'):
+                RIGHT_CAMERA_PATH = line.strip().split(' ')[-1]
+            if line.startswith('intrinsics_back'):
+                BACK_INTRINSICS = line.strip().split(' ')[-1]
+            if line.startswith('intrinsics_right'):
+                RIGHT_INTRINSICS = line.strip().split(' ')[-1]
+            if line.startswith('intrinsics_left'):
+                LEFT_INTRINSICS = line.strip().split(' ')[-1]
 
 def get_calibration(filename):
-    calibration_path = Path("Shared/project/Tesla/CalibrationTesla")
-    side_calibration_path = calibration_path / filename
-    side_calibration_f = open(side_calibration_path, encoding="utf-8")
-    side_calibration_str = side_calibration_f.read()
-    K_side, k_side = parse_camera_matrix(side_calibration_str)
-    return K_side, k_side
+    calibration_path = Path(filename)
+    calibration_path_f = open(calibration_path, encoding="utf-8")
+    calibration_str = calibration_path_f.read()
+    K, k = parse_camera_matrix(calibration_str)
+    return K, k
 
 if __name__ == '__main__':
     if len(sys.argv) == 2:
         file_name, config_name = sys.argv  # TODO: Make paths dependent on config
 
     load_conf_file()
-    """
+    
     print("Subsampling video to obtain frames...")
     for video_path in VIDEO_PATHS:
         _, video_name = os.path.split(video_path)
@@ -101,24 +118,16 @@ if __name__ == '__main__':
         os.makedirs(video_path_output, exist_ok=True)
         video_mat =  vu.video_to_frames(video_path, video_path_output, 60)
     print("Saved subsampled frames.")
-    """
 
+    K_back, k_back = get_calibration(BACK_INTRINSICS)
+    K_left, k_left = get_calibration(LEFT_INTRINSICS)
+    K_right, k_right = get_calibration(RIGHT_INTRINSICS)
 
-    K_back, k_back = get_calibration("BackCamera_calibration.txt")
-    K_left, k_left = get_calibration("LeftCamera_calibration.txt")
-    K_right, k_right = get_calibration("RightCamera_calibration.txt")
-
-    back_images = sorted(glob.glob("Shared/project/Tesla/TeslaVC_carreira/undistorted_images/2023-07-23_11-36-50-back/*.jpg"))
-    side_images_left = sorted(glob.glob("Shared/project/Tesla/TeslaVC_carreira/undistorted_images/2023-07-23_11-36-50-left_repeater/*.jpg"))
-    side_images_right = sorted(glob.glob("Shared/project/Tesla/TeslaVC_carreira/undistorted_images/2023-07-23_11-36-50-right_repeater/*.jpg"))
+    back_images = sorted(glob.glob(BACK_CAMERA_PATH + "/*.jpg"))
+    side_images_left = sorted(glob.glob(LEFT_CAMERA_PATH + "/*.jpg"))
+    side_images_right = sorted(glob.glob(RIGHT_CAMERA_PATH + "/*.jpg"))
     
-    for i, (back_i, left_i, right_i) in tqdm(enumerate(zip(back_images, side_images_left, side_images_right))):
-        if i > 0:
-            break
-            
-        print(f"back_path: {back_i}")
-        print(f"right_patch: {right_i}")
-
+    for i, (back_i, left_i, right_i) in tqdm(enumerate(zip(back_images, side_images_left, side_images_right))):            
         image1 = cv2.imread(back_i)
         image2 = cv2.imread(left_i)
         image3 = cv2.imread(right_i)
@@ -135,7 +144,6 @@ if __name__ == '__main__':
         matches_right_back = matcher.knnMatch(descriptors_1, descriptors_3, k=2)
 
         homographies = []
-        
         for image, matches, keypoints in ((image3, matches_right_back, keypoints_3),):
             # Apply ratio test to find good matches
             good_matches = []
@@ -160,15 +168,15 @@ if __name__ == '__main__':
             rotation = np.array([r_1, r_2, r_3]) 
             rotation = scipy.linalg.orth(rotation)
 
-            # homographies.append([homography, rotation, translation])
+            homographies.append([homography, rotation, translation])
 
-            K_back = np.array(K_back)
-            E = K_back.T * homography * K_back
-            _, R, t, _ = cv2.recoverPose(E, points_src, points_dest, K_back)
+            # K_back = np.array(K_back)
+            # E = K_back.T * homography * K_back
+            # _, R, t, _ = cv2.recoverPose(E, points_src, points_dest, K_back)
             # points_3D = cv2.triangulatePoints(projMatr1, projMatr2, points_src, points_dest)
-            print(f"Rotation: {R}")
-            print(f"Translation: {t}")
-            homographies.append([homography, R, t])
+            print(f"Rotation: {rotation}")
+            print(f"Translation: {translation}")
+            # homographies.append([homography, R, t])
 
             # Display the result
             
@@ -186,9 +194,7 @@ if __name__ == '__main__':
             # cv2.imwrite(f"output/back_{i}.jpg", image1_kp)
             # cv2.imwrite(f"output/left_{i}.jpg", image_dest_kp)
             # cv2.imwrite(f"output/warped_{i}.jpg", warped_image)
-
             
-
     # Visualization
     # Create a new figure for 3D plotting
     fig = plt.figure()
@@ -201,7 +207,7 @@ if __name__ == '__main__':
 
     # Plotting the base camera
     back_camera = np.array([0, 0, 0])
-    ax.scatter(*back_camera, color='r', s=100, label='Camera Position')
+    ax.scatter(*back_camera, color='r', s=100, label='Back Camera Position')
     ax.quiver(*back_camera, *(i), color='r', arrow_length_ratio=0.3)
     ax.quiver(*back_camera, *(j), color='g', arrow_length_ratio=0.3)
     ax.quiver(*back_camera, *(k), color='b', arrow_length_ratio=0.3)
@@ -211,7 +217,7 @@ if __name__ == '__main__':
         camera_position = back_camera + np.array([translation[0], translation[1], 0])
 
         # Plot the camera position
-        ax.scatter(*camera_position, s=100, label=f"Camera Position {index}")
+        ax.scatter(*camera_position, s=100, label=f"Right Side Camera Position")
 
         # Plot the camera orientation as an arrow
         ax.quiver(*camera_position, *(rotation @ i), color='r', arrow_length_ratio=0.3)
@@ -219,7 +225,7 @@ if __name__ == '__main__':
         ax.quiver(*camera_position, *(rotation @ k), color='b', arrow_length_ratio=0.3)
 
     # Setting plot limits for better visualization
-    field_length = 3
+    field_length = 1
     ax.set_xlim([-field_length, field_length])
     ax.set_ylim([-field_length, field_length])
     ax.set_zlim([-field_length, field_length])
